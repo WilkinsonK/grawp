@@ -1,15 +1,19 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/WilkinsonK/grawp/bin/grawpadmin/service_manifest"
+	"github.com/WilkinsonK/grawp/bin/grawpadmin/service_models"
 	"github.com/docker/docker/client"
 	"github.com/spf13/cobra"
 )
 
 var (
+	dataName            string
 	imageName           string
 	imagePath           string
 	serviceExposedPorts []string
@@ -26,17 +30,27 @@ var rootCommand = &cobra.Command{
 }
 
 var buildImage = &cobra.Command{
-	Use:   "build <name>",
-	Short: "Build a container image",
-	Args:  cobra.ExactArgs(0),
-	RunE:  BuildImage,
+	Use:     "build",
+	Short:   "Build a container image",
+	Args:    cobra.ExactArgs(0),
+	PreRunE: initDatabase,
+	RunE:    BuildImage,
 }
 
 var initImageService = &cobra.Command{
-	Use:   "init <name>",
-	Short: "Build and start a container from an image or image manifest",
-	Args:  cobra.ExactArgs(0),
-	RunE:  InitImageService,
+	Use:     "init",
+	Short:   "Build and start a container from an image or image manifest",
+	Args:    cobra.ExactArgs(0),
+	PreRunE: initDatabase,
+	RunE:    InitImageService,
+}
+
+var listImages = &cobra.Command{
+	Use:     "listi",
+	Short:   "List service images available",
+	Args:    cobra.ExactArgs(0),
+	PreRunE: initDatabase,
+	RunE:    ListImages,
 }
 
 func commonImageFlags(cmd *cobra.Command) {
@@ -51,13 +65,30 @@ func init() {
 	initImageService.Flags().StringVarP(&serviceLocalVolume, "local-volume", "v", "server", "The output directory where server assets are managed")
 	commonImageFlags(buildImage)
 	commonImageFlags(initImageService)
-	// Used for reading all available manifest file(s).
+	commonImageFlags(listImages)
+
+	rootCommand.PersistentFlags().StringVarP(&dataName, "data-name", "d", "data.db", "Path to service data")
 	rootCommand.PersistentFlags().StringVarP(&servicesPath, "services-path", "S", ".", "Service definitions path")
-	rootCommand.AddCommand(buildImage, initImageService)
+	rootCommand.AddCommand(buildImage, initImageService, listImages)
+}
+
+func initDatabase(cmd *cobra.Command, _ []string) error {
+	return withDatabase(func(db *sql.DB) error {
+		return service_models.InitDatabaseTables(db)
+	})
+}
+
+func withDatabase(callback func(db *sql.DB) error) error {
+	db, err := sql.Open("sqlite3", filepath.Join(servicesPath, dataName))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return callback(db)
 }
 
 func BuildImage(cmd *cobra.Command, _ []string) error {
-	sm, err := LoadManifest(filepath.Join(servicesPath, imagePath, imageName))
+	sm, err := service_manifest.LoadManifest(filepath.Join(servicesPath, imagePath, imageName))
 	if err != nil {
 		return err
 	}
@@ -70,16 +101,23 @@ func BuildImage(cmd *cobra.Command, _ []string) error {
 		Manifest:       &sm,
 		OutDestination: os.Stdout,
 	}
-	if err = BuildImageFromManifest(cli, opts); err != nil {
+	models, err := BuildImageFromManifest(cli, opts)
+	if err != nil {
 		return err
 	}
-	return nil
+
+	return withDatabase(func(db *sql.DB) error {
+		_, err = service_models.ServiceImagePut(db, models...)
+		return err
+	})
 }
 
 func InitImageService(cmd *cobra.Command, _ []string) error {
 	// TODO: Still need to be able to rebuild the container
 	// (if necessary or user wants to).
-	sm, err := LoadManifest(filepath.Join(servicesPath, imagePath, imageName))
+	// TODO: Still need to be able to build the container
+	// image if it does not exist.
+	sm, err := service_manifest.LoadManifest(filepath.Join(servicesPath, imagePath, imageName))
 	if err != nil {
 		return err
 	}
@@ -110,6 +148,19 @@ func InitImageService(cmd *cobra.Command, _ []string) error {
 	fmt.Println()
 
 	return nil
+}
+
+func ListImages(cmd *cobra.Command, _ []string) error {
+	return withDatabase(func(db *sql.DB) error {
+		models, err := service_models.ServiceImagesList(db)
+		if err != nil {
+			return err
+		}
+		for idx, model := range models {
+			fmt.Printf("MODEL(%d): %s\n", idx, model)
+		}
+		return nil
+	})
 }
 
 // Commands:

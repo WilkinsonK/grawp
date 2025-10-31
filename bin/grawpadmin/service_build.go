@@ -3,39 +3,75 @@ package main
 import (
 	"context"
 	"io"
+	"strings"
 
+	"github.com/WilkinsonK/grawp/bin/grawpadmin/service_manifest"
+	"github.com/WilkinsonK/grawp/bin/grawpadmin/service_models"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
 
 type ServiceBuildOpts struct {
 	OutDestination io.Writer
-	Manifest       *ServiceManifest
+	Manifest       *service_manifest.ServiceManifest
 	ServiceName    string
 	TagName        string
 }
 
 // Attempt to build an image from an `ImageManifest`.
-func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) error {
+func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) ([]service_models.ServiceImage, error) {
+	var models []service_models.ServiceImage
 	opt, err := opts.Manifest.GetImageBuildOptions()
 	if err != nil {
-		return err
+		return models, err
 	}
 	ctx, err := opts.Manifest.GetImageBuildContext()
 	if err != nil {
-		return err
+		return models, err
 	}
 	defer ctx.Close()
 
 	resp, err := cli.ImageBuild(context.Background(), ctx, opt)
 	if err != nil {
-		return err
+		return models, err
 	}
 	defer resp.Body.Close()
 	io.Copy(opts.OutDestination, resp.Body)
 
-	cli.ImagesPrune(context.Background(), filters.Args{})
-	return nil
+	_, err = cli.ImagesPrune(context.Background(), filters.Args{})
+	if err != nil {
+		return models, err
+	}
+
+	for _, tag := range opt.Tags {
+		tParts := strings.SplitN(tag, ":", 2)
+		tName := tParts[0]
+		tTag := "latest"
+		if len(tParts) > 1 {
+			tTag = tParts[1]
+		}
+
+		resp, err := cli.ImageList(context.Background(), image.ListOptions{
+			Filters: filters.NewArgs(filters.Arg("reference", tag)),
+		})
+		if err != nil {
+			return models, err
+		}
+
+		model_opts := service_models.ServiceImageNewOptions{
+			Name:     tName,
+			Tag:      tTag,
+			DockerId: resp[0].ID,
+		}
+		model, err := service_models.ServiceImageNew(model_opts)
+		if err != nil {
+			return models, err
+		}
+		models = append(models, model)
+	}
+
+	return models, nil
 }
 
 // Attempt to create a service container from an
@@ -57,8 +93,9 @@ func BuildServiceFromManifest(cli *client.Client, opts ServiceBuildOpts) (string
 		return "", "", err
 	}
 
+	ctx := context.Background()
 	res, err := cli.ContainerCreate(
-		context.Background(),
+		ctx,
 		&config,
 		&hostc,
 		nil, nil, opts.ServiceName)

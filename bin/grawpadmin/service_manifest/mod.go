@@ -1,6 +1,6 @@
 // Defines and dictates the structure of container image
 // manifestation per each server container definition.
-package main
+package service_manifest
 
 import (
 	"bytes"
@@ -23,10 +23,10 @@ type ServiceManifest struct {
 	Name             string
 	Dockerfile       string
 	MinecraftVersion string
-	Args             map[string]interface{}
+	Args             map[string]any
 	LocalVolume      string
 	Ports            []string
-	Properties       map[string]interface{}
+	Properties       map[string]any
 	Tags             []string
 }
 
@@ -59,7 +59,7 @@ func (Sm *ServiceManifest) GetDockerfile() string {
 	if Sm.Dockerfile != "" {
 		return Sm.Dockerfile
 	}
-	return strings.Join([]string{Sm.Name, "Dockerfile"}, ".")
+	return ".Dockerfile"
 }
 
 // Get the image build context associated with this image
