@@ -1,0 +1,14 @@
+name: papermc
+minecraftversion: 1.21.10
+args:
+  PapermcEndpoint: "{{.Properties.BuildHash}}/paper-{{.MinecraftVersion}}-{{.Properties.BuildNumber}}.jar"
+localvolume: /Users/kwilkinson/dev/minecraft/server
+ports:
+  - 25565:25565
+  - 25575:25575
+properties:
+  BuildHash: f6d8d80d25a687cc52a02a1d04cb25f167bb3a8a828271a263be2f44ada912cc
+  BuildNumber: 91
+tags:
+  - "{{.Name}}:latest"
+  - "{{.Name}}:{{.MinecraftVersion}}-{{.Properties.BuildNumber}}"

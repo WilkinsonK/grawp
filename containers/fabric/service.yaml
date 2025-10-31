@@ -1,0 +1,12 @@
+name: fabric
+minecraftversion: 1.21.10
+args:
+  FabricInstallerVersion: 1.1.0
+  FabricLoaderVersion: 0.17.3
+  MinecraftVersion: "{{.MinecraftVersion}}"
+ports:
+  - 25565:25565
+  - 25575:25575
+tags:
+  - "{{.Name}}:latest"
+  - "{{.Name}}:{{.MinecraftVersion}}-{{.Args.FabricLoaderVersion}}-{{.Args.FabricInstallerVersion}}"
