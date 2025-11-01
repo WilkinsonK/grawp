@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/build"
 	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/manifest"
@@ -15,15 +16,16 @@ import (
 )
 
 var (
-	dataName            string
-	imageName           string
-	imagePath           string
-	serviceFindOpts     models.ServiceContainerFindOpts
-	serviceExposedPorts []string
-	serviceImageTagName string
-	serviceLocalVolume  string
-	serviceName         string
-	servicesPath        string
+	grawpManifest        manifest.GrawpManifest
+	imageName            string
+	imagePath            string
+	imageBuildArgs       []string
+	imageBuildProperties []string
+	serviceFindOpts      models.ServiceContainerFindOpts
+	serviceExposedPorts  []string
+	serviceImageTagName  string
+	serviceLocalVolume   string
+	serviceName          string
 )
 
 var rootCommand = &cobra.Command{
@@ -86,10 +88,44 @@ var watchImageServiceCommand = &cobra.Command{
 }
 
 func buildImage(cli *client.Client) error {
-	sm, err := manifest.LoadManifest(filepath.Join(servicesPath, imagePath, imageName))
+	sm, err := manifest.LoadManifest(filepath.Join(grawpManifest.ServicesPath, imagePath, imageName))
 	if err != nil {
 		return err
 	}
+
+	// Read all manifest assets and find all template files.
+	// Save the template files for later.
+	templateFiles, err := FindTemplateFiles(sm.GetManifestDirectory())
+
+	// Apply user-defined properties from the command line.
+	for _, arg := range imageBuildProperties {
+		parsed := strings.SplitN(arg, "=", 2)
+		key, val := parsed[0], ""
+		if len(parsed) > 1 {
+			val = parsed[1]
+		}
+		sm.Properties[key] = val
+	}
+
+	// Apply user-defined build args from the command line.
+	for _, arg := range imageBuildArgs {
+		parsed := strings.SplitN(arg, "=", 2)
+		key, val := parsed[0], ""
+		if len(parsed) > 1 {
+			val = parsed[1]
+		}
+		sm.Args[key] = val
+	}
+
+	// Render file assets from templates using manifest.
+	for _, file := range templateFiles {
+		into, _ := strings.CutSuffix(file, ".tmpl")
+		if err = RenderFromManifestO(file, into, &sm); err != nil {
+			return err
+		}
+	}
+
+	// Construct build options and build out image.
 	opts := build.ServiceBuildOpts{
 		DataPath:       getDataSource(),
 		Manifest:       &sm,
@@ -101,8 +137,11 @@ func buildImage(cli *client.Client) error {
 }
 
 func commonImagePersistentFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVarP(&dataName, "data-name", "d", "data.db", "Path to service data")
-	cmd.PersistentFlags().StringVarP(&servicesPath, "services-path", "S", ".", "Service definitions path")
+	path, err := grawpManifest.GetServicesPath()
+	if err != nil {
+		panic(err)
+	}
+	cmd.PersistentFlags().StringVarP(&grawpManifest.ServicesPath, "services-path", "S", path, "Service definitions path")
 }
 
 func commonImageFlags(cmd *cobra.Command) {
@@ -111,6 +150,15 @@ func commonImageFlags(cmd *cobra.Command) {
 }
 
 func init() {
+	if gm, err := manifest.LoadGrawpManifest(); err != nil {
+		panic(err)
+	} else {
+		grawpManifest = gm
+	}
+
+	buildImageCommand.Flags().StringArrayVarP(&imageBuildArgs, "build-arg", "b", []string{}, "Build arguments, as <key>=<value> pairs, to pass at construction")
+	buildImageCommand.Flags().StringArrayVarP(&imageBuildProperties, "property", "P", []string{}, "Build properties, as <key>=<value> pairs, to pass at construction")
+
 	buildImageServiceCommand.Flags().StringVarP(&serviceName, "name", "N", "", "Name of the service to be created")
 	buildImageServiceCommand.Flags().StringSliceVarP(&serviceExposedPorts, "publish", "p", []string{}, "Additional ports to expose on service intialization")
 	buildImageServiceCommand.Flags().StringVarP(&serviceImageTagName, "image-tag", "t", "latest", "Service image tag name to create service from")
@@ -126,7 +174,7 @@ func init() {
 	commonImagePersistentFlags(imagesCommand)
 	commonImagePersistentFlags(imageServicesCommand)
 
-	watchImageServiceCommand.Flags().StringVarP(&dataName, "data-name", "d", "data.db", "Path to service data")
+	watchImageServiceCommand.Flags().StringVarP(&grawpManifest.DataName, "data-name", "d", grawpManifest.DataName, "Path to service data")
 
 	imagesCommand.AddCommand(buildImageCommand, listImagesCommand)
 	imageServicesCommand.AddCommand(buildImageServiceCommand, listImageServicesCommand)
@@ -138,7 +186,7 @@ func initImageService(cli *client.Client) error {
 	// (if necessary or user wants to).
 	// TODO: Still need to be able to build the container
 	// image if it does not exist.
-	sm, err := manifest.LoadManifest(filepath.Join(servicesPath, imagePath, imageName))
+	sm, err := manifest.LoadManifest(filepath.Join(grawpManifest.ServicesPath, imagePath, imageName))
 	if err != nil {
 		return err
 	}
@@ -168,7 +216,11 @@ func initImageService(cli *client.Client) error {
 }
 
 func getDataSource() string {
-	return filepath.Join(servicesPath, dataName)
+	root, err := manifest.FindDotGrawp()
+	if err != nil {
+		root = grawpManifest.ServicesPath
+	}
+	return filepath.Join(root, grawpManifest.DataName)
 }
 
 func initDatabase(cmd *cobra.Command, _ []string) error {
@@ -253,10 +305,10 @@ func WatchService(cmd *cobra.Command, args []string) error {
 	return models.WithDatabase(getDataSource(), watchServiceWithDatabase(args))
 }
 
-// Commands:
+// Tasks:
+// - Generate core assets to be packed into a new image.
 // - Archive server assets
-// - Start container
-// - Watch container
+// - Remove assest that are too old
 func main() {
 	if err := rootCommand.Execute(); err != nil {
 		os.Exit(1)

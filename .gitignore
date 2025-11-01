@@ -1,4 +1,10 @@
+/.grawp
 /.venv
 /backups
+/proxy
 /server
 *.db
+!*.template
+!*.tmpl
+*.properties
+*.yml

@@ -1,0 +1,14 @@
+name: velocity
+minecraftversion: 1.21.10
+args:
+  VelocityEndpoint: "{{.Properties.BuildHash}}/velocity-{{.Properties.BuildVersion}}-{{.Properties.BuildNumber}}.jar"
+localvolume: /Users/kwilkinson/dev/minecraft/proxy
+ports:
+  - 25565:25565
+properties:
+  BuildHash: c77b11066c004e6fc07132145994537155fbbbbd5580b7db7b123e0a387560e3
+  BuildVersion: 3.4.0-SNAPSHOT
+  BuildNumber: 555
+tags:
+  - "{{.Name}}:latest"
+  - "{{.Name}}:{{.MinecraftVersion}}-{{.Properties.BuildNumber}}"

@@ -1,0 +1,4 @@
+*.Dockerfile
+*service.yaml
+*.tmpl
+*.template

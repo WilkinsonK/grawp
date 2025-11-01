@@ -1,5 +1,5 @@
 name: fabric
-minecraftversion: 1.21.10
+minecraf-tversion: 1.21.10
 args:
   FabricInstallerVersion: 1.1.0
   FabricLoaderVersion: 0.17.3

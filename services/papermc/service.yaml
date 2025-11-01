@@ -1,14 +1,36 @@
 name: papermc
-minecraftversion: 1.21.10
+minecraft-version: 1.21.10
 args:
   PapermcEndpoint: "{{.Properties.BuildHash}}/paper-{{.MinecraftVersion}}-{{.Properties.BuildNumber}}.jar"
-localvolume: /Users/kwilkinson/dev/minecraft/server
+local-volume: /Users/kwilkinson/dev/minecraft/server
 ports:
   - 25565:25565
   - 25575:25575
 properties:
   BuildHash: f6d8d80d25a687cc52a02a1d04cb25f167bb3a8a828271a263be2f44ada912cc
   BuildNumber: 91
+  Difficulty: easy
+  EnableRcon: false
+  ForceGameMode: false
+  GameMode: survival
+  Hardcore: false
+  LevelName: world
+  LevelSeed: ""
+  LevelType: minecraft\:normal
+  ManagementServerEnabled: false
+  ManagementServerHost: localhost
+  ManagementServerPort: 0
+  ManagementServerSecret: ""
+  MaxPlayers: 20
+  Motd: A Minecraft Server
+  OnlineMode: false
+  OpPermissionLevel: 4
+  RconPassword: ""
+  ServerIp: 127.0.0.1
+  SimulationDistance: 10
+  SpawnProtection: 16
+  ViewDistance: 10
+  Whitelist: false
 tags:
   - "{{.Name}}:latest"
   - "{{.Name}}:{{.MinecraftVersion}}-{{.Properties.BuildNumber}}"
