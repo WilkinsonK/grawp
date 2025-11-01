@@ -1,47 +1,49 @@
-package main
+package build
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"strings"
 
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service_manifest"
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service_models"
+	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/manifest"
+	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/models"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
 
 type ServiceBuildOpts struct {
+	DataPath       string
 	OutDestination io.Writer
-	Manifest       *service_manifest.ServiceManifest
+	Manifest       *manifest.ServiceManifest
 	ServiceName    string
 	TagName        string
 }
 
 // Attempt to build an image from an `ImageManifest`.
-func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) ([]service_models.ServiceImage, error) {
-	var models []service_models.ServiceImage
+func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) ([]models.ServiceImage, error) {
+	var sModels []models.ServiceImage
 	opt, err := opts.Manifest.GetImageBuildOptions()
 	if err != nil {
-		return models, err
+		return sModels, err
 	}
 	ctx, err := opts.Manifest.GetImageBuildContext()
 	if err != nil {
-		return models, err
+		return sModels, err
 	}
 	defer ctx.Close()
 
 	resp, err := cli.ImageBuild(context.Background(), ctx, opt)
 	if err != nil {
-		return models, err
+		return sModels, err
 	}
 	defer resp.Body.Close()
 	io.Copy(opts.OutDestination, resp.Body)
 
 	_, err = cli.ImagesPrune(context.Background(), filters.Args{})
 	if err != nil {
-		return models, err
+		return sModels, err
 	}
 
 	for _, tag := range opt.Tags {
@@ -56,22 +58,26 @@ func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) ([]servic
 			Filters: filters.NewArgs(filters.Arg("reference", tag)),
 		})
 		if err != nil {
-			return models, err
+			return sModels, err
 		}
 
-		model_opts := service_models.ServiceImageNewOptions{
+		model_opts := models.ServiceImageNewOptions{
 			Name:     tName,
 			Tag:      tTag,
 			DockerId: resp[0].ID,
 		}
-		model, err := service_models.ServiceImageNew(model_opts)
+		model, err := models.ServiceImageNew(model_opts)
 		if err != nil {
-			return models, err
+			return sModels, err
 		}
-		models = append(models, model)
+		sModels = append(sModels, model)
 	}
 
-	return models, nil
+	err = models.WithDatabase(opts.DataPath, func(db *sql.DB) error {
+		_, err = models.ServiceImagePut(db, sModels...)
+		return err
+	})
+	return sModels, err
 }
 
 // Attempt to create a service container from an
@@ -79,18 +85,20 @@ func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) ([]servic
 //
 // Returns the `name` of the container and the container
 // `ID`.
-func BuildServiceFromManifest(cli *client.Client, opts ServiceBuildOpts) (string, string, error) {
+func BuildServiceFromManifest(cli *client.Client, opts ServiceBuildOpts) (models.ServiceContainer, error) {
+	var model models.ServiceContainer
+
 	if opts.ServiceName == "" {
 		opts.ServiceName = opts.Manifest.GetServiceName()
 	}
 
 	config, err := opts.Manifest.GetServiceBuildConfig(opts.TagName)
 	if err != nil {
-		return "", "", err
+		return model, err
 	}
 	hostc, err := opts.Manifest.GetServiceHostConfig()
 	if err != nil {
-		return "", "", err
+		return model, err
 	}
 
 	ctx := context.Background()
@@ -99,5 +107,18 @@ func BuildServiceFromManifest(cli *client.Client, opts ServiceBuildOpts) (string
 		&config,
 		&hostc,
 		nil, nil, opts.ServiceName)
-	return opts.ServiceName, res.ID, err
+
+	model_opts := models.ServiceContainerNewOpts{
+		Name:     opts.ServiceName,
+		DockerId: res.ID,
+	}
+	model, err = models.ServiceContainerNew(model_opts)
+	if err != nil {
+		return model, err
+	}
+	err = models.WithDatabase(opts.DataPath, func(db *sql.DB) error {
+		_, err = models.ServiceContainerPut(db, model)
+		return err
+	})
+	return model, err
 }

@@ -1,6 +1,6 @@
 // Defines and dictates the structure of container image
 // manifestation per each server container definition.
-package service_manifest
+package manifest
 
 import (
 	"bytes"

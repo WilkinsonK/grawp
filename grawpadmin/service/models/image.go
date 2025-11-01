@@ -1,11 +1,10 @@
-package service_models
+package models
 
 import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -28,6 +27,10 @@ func (si *ServiceImage) Value() (driver.Value, error) {
 	return string(b), err
 }
 
+// Attempt to add a new `ServiceImage` to the data cache.
+//
+// Fails if the image already exists or if there is an I/O
+// error with the database.
 func ServiceImageAdd(db *sql.DB, si ...ServiceImage) (int, error) {
 	stmt, err := db.Prepare("INSERT INTO service_image(serviceimage) VALUES(?)")
 	if err != nil {
@@ -58,6 +61,9 @@ func ServiceImageAdd(db *sql.DB, si ...ServiceImage) (int, error) {
 	return count, nil
 }
 
+// Attempt to delete a `ServiceImage` from the data cache.
+//
+// Fails if there is an I/O error with the database.
 func ServiceImageDel(db *sql.DB, si ...ServiceImage) (int, error) {
 	stmt, err := db.Prepare("delete from service_image where serviceimage->>'uuid' = ?")
 	if err != nil {
@@ -77,6 +83,10 @@ func ServiceImageDel(db *sql.DB, si ...ServiceImage) (int, error) {
 	return count, nil
 }
 
+// The `ServiceImage` exists in the data cache.
+//
+// `ServiceImage` records are identified by their image
+// `Name` and their image `Tag`.
 func ServiceImageExists(db *sql.DB, si ServiceImage) (bool, error) {
 	stmt, err := db.Prepare("SELECT COUNT(serviceimage) FROM service_image WHERE serviceimage->>'name' == ? AND serviceimage->>'tag' == ?")
 	if err != nil {
@@ -92,6 +102,7 @@ func ServiceImageExists(db *sql.DB, si ServiceImage) (bool, error) {
 	return count > 0, nil
 }
 
+// List all known `ServiceImage` records.
 func ServiceImagesList(db *sql.DB) ([]ServiceImage, error) {
 	var si ServiceImage
 	var sis []ServiceImage
@@ -113,6 +124,8 @@ func ServiceImagesList(db *sql.DB) ([]ServiceImage, error) {
 	return sis, nil
 }
 
+// Attempt to insert new `ServiceImage` records. If a
+// record exists, updates the record instead.
 func ServiceImagePut(db *sql.DB, si ...ServiceImage) (int, error) {
 	var count int = 0
 	for _, image := range si {
@@ -138,6 +151,7 @@ func ServiceImagePut(db *sql.DB, si ...ServiceImage) (int, error) {
 	return count, nil
 }
 
+// Update one or many existing `ServiceImage` record.
 func ServiceImageUpdate(db *sql.DB, si ...ServiceImage) (int, error) {
 	stmt, err := db.Prepare("UPDATE service_image SET serviceimage = ? WHERE serviceimage->>'name' = ? AND serviceimage->>'tag' == ?")
 	if err != nil {
@@ -162,12 +176,12 @@ func ServiceImageUpdate(db *sql.DB, si ...ServiceImage) (int, error) {
 	return count, nil
 }
 
+// Initialize the `ServiceImage` table.
 func ServiceImageTableInit(db *sql.DB) error {
-	_, err := db.Exec("CREATE TABLE service_image (serviceimage jsonb)")
-	if err != nil && strings.Contains(err.Error(), "already exists") {
-		return nil
-	}
-	return err
+	return createServiceModelTable(db, ServiceModelOpts{
+		TableName: "service_image",
+		ModelName: "serviceimage",
+	})
 }
 
 type ServiceImageNewOptions struct {
@@ -177,10 +191,14 @@ type ServiceImageNewOptions struct {
 	DockerId string
 }
 
+// Create a new `ServiceImage` model.
 func ServiceImageNew(opts ServiceImageNewOptions) (ServiceImage, error) {
-	validateUuidOrGenerateNewUuid(&opts.Uuid)
-
 	var si ServiceImage
+	err := validateUuidOrGenerateNewUuid(&opts.Uuid)
+	if err != nil {
+		return si, err
+	}
+
 	si.Uuid = opts.Uuid
 	si.Name = opts.Name
 	si.Tag = opts.Tag
