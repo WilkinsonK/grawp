@@ -12,7 +12,7 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-const defaultMode = 0644
+const defaultMode = 0755
 const dotGrawpName = "*.grawp"
 const grawpManifestName = "grawp.yaml"
 const grawpManifestDefaultData = "data-name: \"data.db\"\nservices-path: \"{{.ProjectDir}}/services\""

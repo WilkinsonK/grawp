@@ -71,7 +71,9 @@ func (Sm *ServiceManifest) GetImageBuildContext() (io.ReadCloser, error) {
 // Generates options for building a container image.
 func (Sm *ServiceManifest) GetImageBuildOptions() (build.ImageBuildOptions, error) {
 	var err error
-	opts := build.ImageBuildOptions{}
+	opts := build.ImageBuildOptions{
+		NoCache: false,
+	}
 	opts.BuildArgs = make(map[string]*string)
 	opts.Dockerfile = Sm.GetDockerfile()
 	opts.ForceRemove = true

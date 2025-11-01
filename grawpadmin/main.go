@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/WilkinsonK/grawp/grawpadmin/manifest"
-	"github.com/WilkinsonK/grawp/grawpadmin/service/build"
+	"github.com/WilkinsonK/grawp/grawpadmin/service"
 	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
 	"github.com/docker/docker/client"
 	"github.com/spf13/cobra"
@@ -21,6 +21,7 @@ var (
 	imagePath            string
 	imageBuildArgs       []string
 	imageBuildProperties []string
+	minecraftVersion     string
 	serviceFindOpts      models.ServiceContainerFindOpts
 	serviceExposedPorts  []string
 	serviceImageTagName  string
@@ -61,6 +62,13 @@ var imageServicesCommand = &cobra.Command{
 	Short:             "manage service containers",
 	Args:              cobra.ExactArgs(0),
 	PersistentPreRunE: initDatabase,
+}
+
+var initImageServiceCommand = &cobra.Command{
+	Use:   "init",
+	Short: "Create a new image service definition",
+	Args:  cobra.ExactArgs(0),
+	RunE:  NewService,
 }
 
 var listImagesCommand = &cobra.Command{
@@ -126,25 +134,36 @@ func buildImage(cli *client.Client) error {
 	}
 
 	// Construct build options and build out image.
-	opts := build.ServiceBuildOpts{
+	opts := service.ServiceBuildOpts{
 		DataPath:       getDataSource(),
 		Manifest:       &sm,
 		OutDestination: os.Stdout,
 	}
 
-	_, err = build.BuildImageFromManifest(cli, opts)
+	_, err = service.BuildImageFromManifest(cli, opts)
 	return err
 }
 
-func commonImagePersistentFlags(cmd *cobra.Command) {
+func commonImagePersistentFlags(commands ...*cobra.Command) {
+	for _, cmd := range commands {
+		commonImagePersistentFlagsC(cmd)
+	}
+}
+
+func commonImagePersistentFlagsC(cmd *cobra.Command) {
 	path, err := grawpManifest.GetServicesPath()
 	if err != nil {
 		panic(err)
 	}
 	cmd.PersistentFlags().StringVarP(&grawpManifest.ServicesPath, "services-path", "S", path, "Service definitions path")
 }
+func commonImageFlags(commands ...*cobra.Command) {
+	for _, cmd := range commands {
+		commonImageFlagsC(cmd)
+	}
+}
 
-func commonImageFlags(cmd *cobra.Command) {
+func commonImageFlagsC(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&imagePath, "manifest-path", "M", "", "Service manifest path")
 	cmd.Flags().StringVarP(&imageName, "manifest-name", "m", "service.yaml", "Service manifest file name")
 }
@@ -164,20 +183,21 @@ func init() {
 	buildImageServiceCommand.Flags().StringVarP(&serviceImageTagName, "image-tag", "t", "latest", "Service image tag name to create service from")
 	buildImageServiceCommand.Flags().StringVarP(&serviceLocalVolume, "local-volume", "v", "server", "The output directory where server assets are managed")
 
-	commonImageFlags(buildImageServiceCommand)
-	commonImageFlags(buildImageCommand)
+	commonImageFlags(buildImageCommand, buildImageServiceCommand)
 
 	listImageServicesCommand.Flags().StringVarP(&serviceFindOpts.Name, "name", "N", "", "Name of the container")
 	listImageServicesCommand.Flags().StringVarP(&serviceFindOpts.DockerID, "id", "I", "", "Docker ID of the container")
 	listImageServicesCommand.Flags().UintVarP(&serviceFindOpts.Limit, "limit", "l", 0, "Max number of items to return")
 
-	commonImagePersistentFlags(imagesCommand)
-	commonImagePersistentFlags(imageServicesCommand)
+	initImageServiceCommand.Flags().StringVarP(&minecraftVersion, "mc-version", "X", "1.21.10", "Minecraft version this service is meant for")
+	initImageServiceCommand.Flags().StringVarP(&serviceName, "name", "N", "", "Name of the service to be created")
+
+	commonImagePersistentFlags(imagesCommand, imageServicesCommand, initImageServiceCommand)
 
 	watchImageServiceCommand.Flags().StringVarP(&grawpManifest.DataName, "data-name", "d", grawpManifest.DataName, "Path to service data")
 
 	imagesCommand.AddCommand(buildImageCommand, listImagesCommand)
-	imageServicesCommand.AddCommand(buildImageServiceCommand, listImageServicesCommand)
+	imageServicesCommand.AddCommand(buildImageServiceCommand, listImageServicesCommand, initImageServiceCommand)
 	rootCommand.AddCommand(imagesCommand, imageServicesCommand, watchImageServiceCommand)
 }
 
@@ -196,13 +216,13 @@ func initImageService(cli *client.Client) error {
 		sm.LocalVolume = serviceLocalVolume
 	}
 
-	opts := build.ServiceBuildOpts{
+	opts := service.ServiceBuildOpts{
 		DataPath:    getDataSource(),
 		Manifest:    &sm,
 		ServiceName: serviceName,
 		TagName:     serviceImageTagName,
 	}
-	model, err := build.BuildServiceFromManifest(cli, opts)
+	model, err := service.BuildServiceFromManifest(cli, opts)
 	if err != nil {
 		return err
 	}
@@ -295,6 +315,10 @@ func ListImages(cmd *cobra.Command, _ []string) error {
 
 func ListServices(cmd *cobra.Command, _ []string) error {
 	return models.WithDatabase(getDataSource(), listServices)
+}
+
+func NewService(cmd *cobra.Command, _ []string) error {
+	return service.ServiceNew(minecraftVersion, grawpManifest.ServicesPath, serviceName)
 }
 
 func WatchService(cmd *cobra.Command, args []string) error {
