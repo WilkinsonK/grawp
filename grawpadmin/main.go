@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/build"
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/manifest"
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/models"
+	"github.com/WilkinsonK/grawp/grawpadmin/manifest"
+	"github.com/WilkinsonK/grawp/grawpadmin/service/build"
+	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
 	"github.com/docker/docker/client"
 	"github.com/spf13/cobra"
 )

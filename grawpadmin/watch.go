@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/models"
+	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )

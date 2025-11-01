@@ -6,8 +6,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/manifest"
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/models"
+	"github.com/WilkinsonK/grawp/grawpadmin/manifest"
+	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"

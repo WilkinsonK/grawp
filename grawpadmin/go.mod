@@ -1,4 +1,4 @@
-module github.com/WilkinsonK/grawp/bin/grawpadmin
+module github.com/WilkinsonK/grawp/grawpadmin
 
 go 1.25.3
 

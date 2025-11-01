@@ -7,7 +7,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/WilkinsonK/grawp/bin/grawpadmin/service/manifest"
+	"github.com/WilkinsonK/grawp/grawpadmin/manifest"
 )
 
 func FindTemplateFiles(path string) ([]string, error) {
