@@ -6,13 +6,16 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"text/template"
 
 	"github.com/goccy/go-yaml"
 )
 
+const defaultMode = 0644
 const dotGrawpName = "*.grawp"
 const grawpManifestName = "grawp.yaml"
+const grawpManifestDefaultData = "data-name: \"data.db\"\nservices-path: \"{{.ProjectDir}}/services\""
 
 var deadPaths []string
 var foundPath string
@@ -46,13 +49,36 @@ func (Gm *GrawpManifest) GetServicesPath() (string, error) {
 	return Gm.formatString("ServicesPath", Gm.ServicesPath)
 }
 
+func GenerateDotGrawp() error {
+	os.Mkdir(strings.ReplaceAll(dotGrawpName, "*", ""), defaultMode)
+	ResetDeadPaths()
+	FindDotGrawp()
+
+	fileName := filepath.Join(foundPath, grawpManifestName)
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaultMode)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.WriteString(grawpManifestDefaultData)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Load a manifest from some buffer.
 func LoadsGrawpManifest(name string, buffer []byte) (GrawpManifest, error) {
 	var output GrawpManifest = GrawpManifest{}
 	var err error = nil
 	err = yaml.Unmarshal(buffer, &output)
 	output.manifestPath = filepath.Dir(name)
-	output.ProjectDir = filepath.Dir(output.manifestPath)
+
+	if output.ProjectDir == "" {
+		output.ProjectDir = filepath.Dir(output.manifestPath)
+	}
+
 	return output, err
 }
 
@@ -63,6 +89,9 @@ func LoadGrawpManifest() (GrawpManifest, error) {
 
 	if !PathFound() {
 		_, err = FindDotGrawp()
+		if err != nil {
+			err = GenerateDotGrawp()
+		}
 	}
 	if err == nil {
 		name := filepath.Join(foundPath, grawpManifestName)
@@ -95,7 +124,7 @@ func FindDotGrawpFromParent(path string) (string, error) {
 }
 
 func FindDotGrawpFromPath(path string) (string, error) {
-	if IsDeadPath(path) {
+	if IsDeadPath(path) && !IsRootPath(path) {
 		return FindDotGrawpFromParent(path)
 	}
 

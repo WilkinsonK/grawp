@@ -216,11 +216,7 @@ func initImageService(cli *client.Client) error {
 }
 
 func getDataSource() string {
-	root, err := manifest.FindDotGrawp()
-	if err != nil {
-		root = grawpManifest.ServicesPath
-	}
-	return filepath.Join(root, grawpManifest.DataName)
+	return filepath.Join(grawpManifest.GetManifestDirectory(), grawpManifest.DataName)
 }
 
 func initDatabase(cmd *cobra.Command, _ []string) error {
