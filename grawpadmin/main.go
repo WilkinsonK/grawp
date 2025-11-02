@@ -170,11 +170,13 @@ func BuildImageService(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	defer broker.Close()
 
 	sm, err := grawpManifest.LoadServiceManifest()
 	if err != nil {
 		return err
 	}
+
 	return broker.BuildImageServiceFromManifest(sm, os.Stdout)
 }
 
