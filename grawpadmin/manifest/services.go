@@ -18,8 +18,16 @@ import (
 	"github.com/moby/go-archive"
 )
 
+type ServiceManifestBuildSettings struct {
+	DataPath       string
+	OutDestination io.Writer
+	ServiceName    string
+	TagName        string
+}
+
 type ServiceManifest struct {
 	manifestPath     string
+	buildSettings    ServiceManifestBuildSettings
 	Name             string
 	Dockerfile       string
 	MinecraftVersion string `json:"minecraft-version"`
@@ -44,6 +52,10 @@ func (Sm *ServiceManifest) formatString(templateName string, value string) (stri
 	return buf.String(), nil
 }
 
+func (Sm *ServiceManifest) AddPorts(ports ...string) {
+	Sm.Ports = append(Sm.Ports, ports...)
+}
+
 // Get a string value from the `Arg` list.
 //
 // Args are capable of being formatted by manifest values
@@ -60,6 +72,12 @@ func (Sm *ServiceManifest) GetDockerfile() string {
 		return Sm.Dockerfile
 	}
 	return ".Dockerfile"
+}
+
+// Get the build settings to be used when either creating an
+// image or service container.
+func (Sm *ServiceManifest) GetImageBuildSettings() *ServiceManifestBuildSettings {
+	return &Sm.buildSettings
 }
 
 // Get the image build context associated with this image
@@ -192,6 +210,39 @@ func (Sm *ServiceManifest) GetTags() ([]string, error) {
 		tags = append(tags, t)
 	}
 	return tags, nil
+}
+
+func (Sm *ServiceManifest) GetTemplateFiles() ([]string, error) {
+	return FindTemplateFiles(Sm.GetManifestDirectory())
+}
+
+// Parse a slice of strings as <key>=<value> pairs into the
+// Args mapping.
+func (Sm *ServiceManifest) UpdateArgsFromSliceS(args []string) {
+	// Apply user-defined build args from the command line.
+	for _, arg := range args {
+		parsed := strings.SplitN(arg, "=", 2)
+		key, val := parsed[0], ""
+		if len(parsed) > 1 {
+			val = parsed[1]
+		}
+		Sm.Args[key] = val
+	}
+}
+
+// Parse a slice of strings as <key>=<value> pairs into the
+// Properties mapping.
+func (Sm *ServiceManifest) UpdatePropertiesFromSliceS(properties []string) {
+
+	// Apply user-defined properties from the command line.
+	for _, prop := range properties {
+		parsed := strings.SplitN(prop, "=", 2)
+		key, val := parsed[0], ""
+		if len(parsed) > 1 {
+			val = parsed[1]
+		}
+		Sm.Properties[key] = val
+	}
 }
 
 // Load a manifest from some buffer.

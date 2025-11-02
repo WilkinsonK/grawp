@@ -13,33 +13,27 @@ import (
 	"github.com/docker/docker/client"
 )
 
-type ServiceBuildOpts struct {
-	DataPath       string
-	OutDestination io.Writer
-	Manifest       *manifest.ServiceManifest
-	ServiceName    string
-	TagName        string
-}
-
 // Attempt to build an image from an `ImageManifest`.
-func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) ([]models.ServiceImage, error) {
+func BuildImageFromManifest(cli *client.Client, sm manifest.ServiceManifest) ([]models.ServiceImage, error) {
 	var sModels []models.ServiceImage
-	opt, err := opts.Manifest.GetImageBuildOptions()
+
+	opt, err := sm.GetImageBuildOptions()
 	if err != nil {
 		return sModels, err
 	}
-	ctx, err := opts.Manifest.GetImageBuildContext()
+	ctx, err := sm.GetImageBuildContext()
 	if err != nil {
 		return sModels, err
 	}
 	defer ctx.Close()
 
+	settings := sm.GetImageBuildSettings()
 	resp, err := cli.ImageBuild(context.Background(), ctx, opt)
 	if err != nil {
 		return sModels, err
 	}
 	defer resp.Body.Close()
-	io.Copy(opts.OutDestination, resp.Body)
+	io.Copy(settings.OutDestination, resp.Body)
 
 	_, err = cli.ImagesPrune(context.Background(), filters.Args{})
 	if err != nil {
@@ -73,7 +67,7 @@ func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) ([]models
 		sModels = append(sModels, model)
 	}
 
-	err = models.WithDatabase(opts.DataPath, func(db *sql.DB) error {
+	err = models.WithDatabase(settings.DataPath, func(db *sql.DB) error {
 		_, err = models.ServiceImagePut(db, sModels...)
 		return err
 	})
@@ -85,18 +79,19 @@ func BuildImageFromManifest(cli *client.Client, opts ServiceBuildOpts) ([]models
 //
 // Returns the `name` of the container and the container
 // `ID`.
-func BuildServiceFromManifest(cli *client.Client, opts ServiceBuildOpts) (models.ServiceContainer, error) {
+func BuildServiceFromManifest(cli *client.Client, sm manifest.ServiceManifest) (models.ServiceContainer, error) {
 	var model models.ServiceContainer
 
-	if opts.ServiceName == "" {
-		opts.ServiceName = opts.Manifest.GetServiceName()
+	settings := sm.GetImageBuildSettings()
+	if settings.ServiceName == "" {
+		settings.ServiceName = sm.GetServiceName()
 	}
 
-	config, err := opts.Manifest.GetServiceBuildConfig(opts.TagName)
+	config, err := sm.GetServiceBuildConfig(settings.TagName)
 	if err != nil {
 		return model, err
 	}
-	hostc, err := opts.Manifest.GetServiceHostConfig()
+	hostc, err := sm.GetServiceHostConfig()
 	if err != nil {
 		return model, err
 	}
@@ -106,17 +101,17 @@ func BuildServiceFromManifest(cli *client.Client, opts ServiceBuildOpts) (models
 		ctx,
 		&config,
 		&hostc,
-		nil, nil, opts.ServiceName)
+		nil, nil, settings.ServiceName)
 
 	model_opts := models.ServiceContainerNewOpts{
-		Name:     opts.ServiceName,
+		Name:     settings.ServiceName,
 		DockerId: res.ID,
 	}
 	model, err = models.ServiceContainerNew(model_opts)
 	if err != nil {
 		return model, err
 	}
-	err = models.WithDatabase(opts.DataPath, func(db *sql.DB) error {
+	err = models.WithDatabase(settings.DataPath, func(db *sql.DB) error {
 		_, err = models.ServiceContainerPut(db, model)
 		return err
 	})

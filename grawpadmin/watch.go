@@ -10,10 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/WilkinsonK/grawp/grawpadmin/service"
 	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 )
+
+var DoneError = fmt.Errorf("done")
 
 type WatchArgs struct {
 	Client     *client.Client
@@ -28,7 +31,14 @@ type WatchArgs struct {
 
 type WatchCallback func(*WatchArgs) error
 
-var DoneError = fmt.Errorf("done")
+type Watcher struct {
+	args   WatchArgs
+	broker *service.ServiceBroker
+}
+
+func (w *Watcher) Watch(name string) error {
+	return WatchImageService(w.broker.Client, w.broker.Database, name)
+}
 
 func SetDoneError(args *WatchArgs) {
 	args.Error = DoneError
@@ -162,4 +172,8 @@ func WatchImageService(cli *client.Client, db *sql.DB, name string) error {
 	})
 
 	return nil
+}
+
+func WatcherNew(broker *service.ServiceBroker) *Watcher {
+	return &Watcher{broker: broker}
 }

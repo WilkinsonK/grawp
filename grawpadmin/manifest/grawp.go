@@ -21,10 +21,31 @@ var deadPaths []string
 var foundPath string
 
 type GrawpManifest struct {
-	manifestPath string
+	metadata     GrawpManifestMetadata
 	DataName     string `json:"data-name"`
 	ServicesPath string `json:"services-path"`
 	ProjectDir   string
+}
+
+type GrawpManifestImageMetadata struct {
+	BuildArgs       []string
+	BuildProperties []string
+	Name            string
+	Path            string
+}
+
+type GrawpManifestMetadata struct {
+	Image            GrawpManifestImageMetadata
+	ManifestPath     string
+	MinecraftVersion string
+	Service          GrawpManifestServiceMetadata
+}
+
+type GrawpManifestServiceMetadata struct {
+	ExposedPorts []string
+	LocalVolume  string
+	Name         string
+	TagName      string
 }
 
 func (Gm *GrawpManifest) formatString(templateName string, value string) (string, error) {
@@ -41,12 +62,47 @@ func (Gm *GrawpManifest) formatString(templateName string, value string) (string
 	return buf.String(), nil
 }
 
+func (Gm *GrawpManifest) GetDataSource() string {
+	return filepath.Join(Gm.GetManifestDirectory(), Gm.DataName)
+}
+
 func (Gm *GrawpManifest) GetManifestDirectory() string {
-	return Gm.manifestPath
+	return Gm.metadata.ManifestPath
+}
+
+func (Gm *GrawpManifest) GetMetadata() *GrawpManifestMetadata {
+	return &Gm.metadata
 }
 
 func (Gm *GrawpManifest) GetServicesPath() (string, error) {
 	return Gm.formatString("ServicesPath", Gm.ServicesPath)
+}
+
+func (Gm *GrawpManifest) GetServiceManifestPath() string {
+	imageData := Gm.metadata.Image
+	return filepath.Join(Gm.ServicesPath, imageData.Path, imageData.Name)
+}
+
+func (Gm *GrawpManifest) LoadServiceManifest() (ServiceManifest, error) {
+	sm, err := LoadManifest(Gm.GetServiceManifestPath())
+	if err != nil {
+		return sm, err
+	}
+
+	metadata, settings := Gm.metadata, sm.GetImageBuildSettings()
+	sm.AddPorts(metadata.Service.ExposedPorts...)
+	sm.UpdateArgsFromSliceS(metadata.Image.BuildArgs)
+	sm.UpdatePropertiesFromSliceS(metadata.Image.BuildProperties)
+	settings.DataPath = Gm.GetDataSource()
+	settings.OutDestination = os.Stdout
+	settings.ServiceName = metadata.Service.Name
+	settings.TagName = metadata.Service.TagName
+
+	if sm.LocalVolume == "" {
+		sm.LocalVolume = metadata.Service.LocalVolume
+	}
+
+	return sm, nil
 }
 
 func GenerateDotGrawp() error {
@@ -73,10 +129,10 @@ func LoadsGrawpManifest(name string, buffer []byte) (GrawpManifest, error) {
 	var output GrawpManifest = GrawpManifest{}
 	var err error = nil
 	err = yaml.Unmarshal(buffer, &output)
-	output.manifestPath = filepath.Dir(name)
+	output.metadata.ManifestPath = filepath.Dir(name)
 
 	if output.ProjectDir == "" {
-		output.ProjectDir = filepath.Dir(output.manifestPath)
+		output.ProjectDir = filepath.Dir(output.metadata.ManifestPath)
 	}
 
 	return output, err
