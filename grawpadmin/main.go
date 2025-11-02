@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	grawpManifest   manifest.GrawpManifest
-	serviceFindOpts models.ServiceContainerFindOpts
+	Manifest manifest.GrawpManifest
+	FindOpts models.ServiceContainerFindOpts
 )
 
 var rootCommand = &cobra.Command{
@@ -70,6 +70,14 @@ var listImageServicesCommand = &cobra.Command{
 	RunE:  ListServices,
 }
 
+var rebuildSelf = &cobra.Command{
+	Aliases: []string{"rs"},
+	Use:     "rebuild-self",
+	Short:   "Rebuild this application",
+	Args:    cobra.ExactArgs(0),
+	RunE:    RebuildSelf,
+}
+
 var watchImageServiceCommand = &cobra.Command{
 	Aliases: []string{"start"},
 	Use:     "watch <name>",
@@ -87,11 +95,11 @@ func commonImagePersistentFlags(commands ...*cobra.Command) {
 }
 
 func commonImagePersistentFlagsC(cmd *cobra.Command) {
-	path, err := grawpManifest.GetServicesPath()
+	path, err := Manifest.GetServicesPath()
 	if err != nil {
 		panic(err)
 	}
-	cmd.PersistentFlags().StringVarP(&grawpManifest.ServicesPath, "services-path", "S", path, "Service definitions path")
+	cmd.PersistentFlags().StringVarP(&Manifest.ServicesPath, "services-path", "S", path, "Service definitions path")
 }
 
 func commonImageFlags(commands ...*cobra.Command) {
@@ -101,45 +109,45 @@ func commonImageFlags(commands ...*cobra.Command) {
 }
 
 func commonImageFlagsC(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&grawpManifest.GetMetadata().Image.Path, "manifest-path", "M", "", "Service manifest path")
-	cmd.Flags().StringVarP(&grawpManifest.GetMetadata().Image.Name, "manifest-name", "m", "service.yaml", "Service manifest file name")
+	cmd.Flags().StringVarP(&Manifest.GetMetadata().Image.Path, "manifest-path", "M", "", "Service manifest path")
+	cmd.Flags().StringVarP(&Manifest.GetMetadata().Image.Name, "manifest-name", "m", "service.yaml", "Service manifest file name")
 }
 
 func init() {
 	if gm, err := manifest.LoadGrawpManifest(); err != nil {
 		panic(err)
 	} else {
-		grawpManifest = gm
+		Manifest = gm
 	}
 
-	buildImageCommand.Flags().StringArrayVarP(&grawpManifest.GetMetadata().Image.BuildArgs, "build-arg", "b", []string{}, "Build arguments, as <key>=<value> pairs, to pass at construction")
-	buildImageCommand.Flags().StringArrayVarP(&grawpManifest.GetMetadata().Image.BuildProperties, "property", "P", []string{}, "Build properties, as <key>=<value> pairs, to pass at construction")
+	buildImageCommand.Flags().StringArrayVarP(&Manifest.GetMetadata().Image.BuildArgs, "build-arg", "b", []string{}, "Build arguments, as <key>=<value> pairs, to pass at construction")
+	buildImageCommand.Flags().StringArrayVarP(&Manifest.GetMetadata().Image.BuildProperties, "property", "P", []string{}, "Build properties, as <key>=<value> pairs, to pass at construction")
 
-	buildImageServiceCommand.Flags().StringVarP(&grawpManifest.GetMetadata().Service.Name, "name", "N", "", "Name of the service to be created")
-	buildImageServiceCommand.Flags().StringSliceVarP(&grawpManifest.GetMetadata().Service.ExposedPorts, "publish", "p", []string{}, "Additional ports to expose on service intialization")
-	buildImageServiceCommand.Flags().StringVarP(&grawpManifest.GetMetadata().Service.TagName, "image-tag", "t", "latest", "Service image tag name to create service from")
-	buildImageServiceCommand.Flags().StringVarP(&grawpManifest.GetMetadata().Service.LocalVolume, "local-volume", "v", "server", "The output directory where server assets are managed")
+	buildImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().Service.Name, "name", "N", "", "Name of the service to be created")
+	buildImageServiceCommand.Flags().StringSliceVarP(&Manifest.GetMetadata().Service.ExposedPorts, "publish", "p", []string{}, "Additional ports to expose on service intialization")
+	buildImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().Service.TagName, "image-tag", "t", "latest", "Service image tag name to create service from")
+	buildImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().Service.LocalVolume, "local-volume", "v", "server", "The output directory where server assets are managed")
 
 	commonImageFlags(buildImageCommand, buildImageServiceCommand)
 
-	listImageServicesCommand.Flags().StringVarP(&serviceFindOpts.Name, "name", "N", "", "Name of the container")
-	listImageServicesCommand.Flags().StringVarP(&serviceFindOpts.DockerID, "id", "I", "", "Docker ID of the container")
-	listImageServicesCommand.Flags().UintVarP(&serviceFindOpts.Limit, "limit", "l", 0, "Max number of items to return")
+	listImageServicesCommand.Flags().StringVarP(&FindOpts.Name, "name", "N", "", "Name of the container")
+	listImageServicesCommand.Flags().StringVarP(&FindOpts.DockerID, "id", "I", "", "Docker ID of the container")
+	listImageServicesCommand.Flags().UintVarP(&FindOpts.Limit, "limit", "l", 0, "Max number of items to return")
 
-	initImageServiceCommand.Flags().StringVarP(&grawpManifest.GetMetadata().MinecraftVersion, "mc-version", "X", "1.21.10", "Minecraft version this service is meant for")
-	initImageServiceCommand.Flags().StringVarP(&grawpManifest.GetMetadata().Service.Name, "name", "N", "", "Name of the service to be created")
+	initImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().MinecraftVersion, "mc-version", "X", "1.21.10", "Minecraft version this service is meant for")
+	initImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().Service.Name, "name", "N", "", "Name of the service to be created")
 
 	commonImagePersistentFlags(imagesCommand, imageServicesCommand, initImageServiceCommand)
 
-	watchImageServiceCommand.Flags().StringVarP(&grawpManifest.DataName, "data-name", "d", grawpManifest.DataName, "Path to service data")
+	watchImageServiceCommand.Flags().StringVarP(&Manifest.DataName, "data-name", "d", Manifest.DataName, "Path to service data")
 
 	imagesCommand.AddCommand(buildImageCommand, listImagesCommand)
 	imageServicesCommand.AddCommand(buildImageServiceCommand, listImageServicesCommand, initImageServiceCommand)
-	rootCommand.AddCommand(imagesCommand, imageServicesCommand, watchImageServiceCommand)
+	rootCommand.AddCommand(imagesCommand, imageServicesCommand, rebuildSelf, watchImageServiceCommand)
 }
 
 func initDatabase(cmd *cobra.Command, _ []string) error {
-	broker, err := service.ServiceBrokerNew(grawpManifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
 	if err != nil {
 		return err
 	}
@@ -148,13 +156,13 @@ func initDatabase(cmd *cobra.Command, _ []string) error {
 }
 
 func BuildImage(cmd *cobra.Command, _ []string) error {
-	broker, err := service.ServiceBrokerNew(grawpManifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
 	if err != nil {
 		return err
 	}
 	defer broker.Close()
 
-	sm, err := grawpManifest.LoadServiceManifest()
+	sm, err := Manifest.LoadServiceManifest()
 	if err != nil {
 		return err
 	}
@@ -166,13 +174,13 @@ func BuildImageService(cmd *cobra.Command, _ []string) error {
 	// (if necessary or user wants to).
 	// TODO: Still need to be able to build the container
 	// image if it does not exist.
-	broker, err := service.ServiceBrokerNew(grawpManifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
 	if err != nil {
 		return err
 	}
 	defer broker.Close()
 
-	sm, err := grawpManifest.LoadServiceManifest()
+	sm, err := Manifest.LoadServiceManifest()
 	if err != nil {
 		return err
 	}
@@ -181,7 +189,7 @@ func BuildImageService(cmd *cobra.Command, _ []string) error {
 }
 
 func ListImages(cmd *cobra.Command, _ []string) error {
-	broker, err := service.ServiceBrokerNew(grawpManifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
 	if err != nil {
 		return err
 	}
@@ -190,21 +198,24 @@ func ListImages(cmd *cobra.Command, _ []string) error {
 }
 
 func ListServices(cmd *cobra.Command, _ []string) error {
-	broker, err := service.ServiceBrokerNew(grawpManifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
 	if err != nil {
 		return err
 	}
 	defer broker.Close()
-	return broker.ListServices(os.Stdout, serviceFindOpts)
+	return broker.ListServices(os.Stdout, FindOpts)
 }
 
 func NewService(cmd *cobra.Command, _ []string) error {
-	metadata := grawpManifest.GetMetadata()
-	return service.ServiceNew(metadata.MinecraftVersion, grawpManifest.ServicesPath, metadata.Service.Name)
+	return Manifest.NewService()
+}
+
+func RebuildSelf(cmd *cobra.Command, _ []string) error {
+	return DoRebuildSelf()
 }
 
 func WatchService(cmd *cobra.Command, args []string) error {
-	broker, err := service.ServiceBrokerNew(grawpManifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
 	if err != nil {
 		return err
 	}

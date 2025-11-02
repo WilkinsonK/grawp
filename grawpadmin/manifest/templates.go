@@ -92,5 +92,5 @@ func RenderFromManifestO(from, into string, sm *ServiceManifest) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(into, render, 0755)
+	return os.WriteFile(into, render, defaultFileMode)
 }

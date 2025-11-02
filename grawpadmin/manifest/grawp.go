@@ -12,7 +12,6 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-const defaultMode = 0755
 const dotGrawpName = "*.grawp"
 const grawpManifestName = "grawp.yaml"
 const grawpManifestDefaultData = "data-name: \"data.db\"\nservices-path: \"{{.ProjectDir}}/services\""
@@ -105,13 +104,17 @@ func (Gm *GrawpManifest) LoadServiceManifest() (ServiceManifest, error) {
 	return sm, nil
 }
 
+func (Gm *GrawpManifest) NewService() error {
+	return ServiceNew(*Gm)
+}
+
 func GenerateDotGrawp() error {
-	os.Mkdir(strings.ReplaceAll(dotGrawpName, "*", ""), defaultMode)
+	os.Mkdir(strings.ReplaceAll(dotGrawpName, "*", ""), defaultFileMode)
 	ResetDeadPaths()
 	FindDotGrawp()
 
 	fileName := filepath.Join(foundPath, grawpManifestName)
-	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaultMode)
+	file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaultFileMode)
 	if err != nil {
 		return err
 	}

@@ -1,12 +1,10 @@
-package service
+package manifest
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
 )
-
-const defaultMode = 0755
 
 type ServiceNewCallback func(opts ServiceNewOpts) error
 
@@ -23,7 +21,7 @@ func (Sn *ServiceNewOpts) GetServicePath() string {
 }
 
 func openWritableFile(name string) (*os.File, error) {
-	return os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaultMode)
+	return os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaultFileMode)
 }
 
 func GenerateDockerFile(opts ServiceNewOpts) error {
@@ -86,22 +84,22 @@ func GenerateServiceFile(opts ServiceNewOpts) error {
 	return nil
 }
 
-func ServiceNew(minecraftVersion, servicePath, serviceName string) error {
+func ServiceNew(gm GrawpManifest) error {
 	return ServiceNewWithOpts(ServiceNewOpts{
 		Callbacks: []ServiceNewCallback{
 			GenerateDockerFile,
 			GenerateDockerIgnoreFile,
 			GenerateServiceFile,
 		},
-		MinecraftVersion: minecraftVersion,
+		MinecraftVersion: gm.metadata.MinecraftVersion,
 		LocalVolume:      ".",
-		ServiceName:      serviceName,
-		ServicePath:      servicePath,
+		ServiceName:      gm.metadata.Service.Name,
+		ServicePath:      gm.ServicesPath,
 	})
 }
 
 func ServiceNewWithOpts(opts ServiceNewOpts) error {
-	os.Mkdir(opts.GetServicePath(), defaultMode)
+	os.Mkdir(opts.GetServicePath(), defaultFileMode)
 	for _, callback := range opts.Callbacks {
 		if err := callback(opts); err != nil {
 			return err
