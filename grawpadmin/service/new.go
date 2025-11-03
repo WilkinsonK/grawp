@@ -1,9 +1,11 @@
-package manifest
+package service
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/WilkinsonK/grawp/grawpadmin/manifest"
 )
 
 type ServiceNewCallback func(opts ServiceNewOpts) error
@@ -16,12 +18,32 @@ type ServiceNewOpts struct {
 	ServicePath      string
 }
 
+func (Sn *ServiceNewOpts) GetArchivePath() string {
+	return filepath.Join(Sn.ServicePath, Sn.ServiceName, "archive")
+}
+
+func (Sn *ServiceNewOpts) GetAssetsPath() string {
+	return filepath.Join(Sn.ServicePath, Sn.ServiceName, "assets")
+}
+
 func (Sn *ServiceNewOpts) GetServicePath() string {
 	return filepath.Join(Sn.ServicePath, Sn.ServiceName)
 }
 
+func (Sn *ServiceNewOpts) GetTemplatesPath() string {
+	return filepath.Join(Sn.ServicePath, Sn.ServiceName, "templates")
+}
+
 func openWritableFile(name string) (*os.File, error) {
 	return os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaultFileMode)
+}
+
+func GenerateArchiveDir(opts ServiceNewOpts) error {
+	return os.MkdirAll(opts.GetArchivePath(), defaultFileMode)
+}
+
+func GenerateAssetsDir(opts ServiceNewOpts) error {
+	return os.MkdirAll(opts.GetAssetsPath(), defaultFileMode)
 }
 
 func GenerateDockerFile(opts ServiceNewOpts) error {
@@ -67,6 +89,10 @@ func GenerateServiceFile(opts ServiceNewOpts) error {
 	fmt.Fprintf(file, "# construct service images and containers\n")
 	fmt.Fprintf(file, "name: %s\n", opts.ServiceName)
 	fmt.Fprintf(file, "minecraft-version: %s\n", opts.MinecraftVersion)
+	fmt.Fprintf(file, "archive:\n")
+	fmt.Fprintf(file, "  - name: world\n")
+	fmt.Fprintf(file, "  include:\n")
+	fmt.Fprintf(file, "    - \"world/*/**\"\n")
 	fmt.Fprintf(file, "# Args are used at image build-time. Any declared\n")
 	fmt.Fprintf(file, "# \"ARG\" calls in the Docker file can be defined here\n")
 	fmt.Fprintf(file, "args:\n")
@@ -84,16 +110,29 @@ func GenerateServiceFile(opts ServiceNewOpts) error {
 	return nil
 }
 
-func ServiceNew(gm GrawpManifest) error {
+func GenerateServiceDir(opts ServiceNewOpts) error {
+	return os.MkdirAll(opts.GetServicePath(), defaultFileMode)
+}
+
+func GenerateTemplatesDir(opts ServiceNewOpts) error {
+	return os.MkdirAll(opts.GetTemplatesPath(), defaultFileMode)
+}
+
+func ServiceNew(gm manifest.GrawpManifest) error {
+	metadata := gm.GetMetadata()
 	return ServiceNewWithOpts(ServiceNewOpts{
 		Callbacks: []ServiceNewCallback{
+			GenerateArchiveDir,
+			GenerateAssetsDir,
+			GenerateServiceDir,
+			GenerateTemplatesDir,
 			GenerateDockerFile,
 			GenerateDockerIgnoreFile,
 			GenerateServiceFile,
 		},
-		MinecraftVersion: gm.metadata.MinecraftVersion,
+		MinecraftVersion: metadata.MinecraftVersion,
 		LocalVolume:      ".",
-		ServiceName:      gm.metadata.Service.Name,
+		ServiceName:      metadata.Service.Name,
 		ServicePath:      gm.ServicesPath,
 	})
 }

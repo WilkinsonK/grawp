@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/WilkinsonK/grawp/grawpadmin/service"
 	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
@@ -33,7 +32,7 @@ type WatchCallback func(*WatchArgs) error
 
 type Watcher struct {
 	args   WatchArgs
-	broker *service.ServiceBroker
+	broker *ServiceBroker
 }
 
 func (w *Watcher) Watch(name string) error {
@@ -174,6 +173,6 @@ func WatchImageService(cli *client.Client, db *sql.DB, name string) error {
 	return nil
 }
 
-func WatcherNew(broker *service.ServiceBroker) *Watcher {
+func WatcherNew(broker *ServiceBroker) *Watcher {
 	return &Watcher{broker: broker}
 }

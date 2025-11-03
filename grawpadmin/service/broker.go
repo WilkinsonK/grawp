@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/WilkinsonK/grawp/grawpadmin/manifest"
 	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
+	"github.com/WilkinsonK/grawp/grawpadmin/util"
 	"github.com/docker/docker/client"
 )
 
@@ -16,6 +18,28 @@ type ServiceManifestCallback func(manifest.ServiceManifest) error
 type ServiceBroker struct {
 	Client   *client.Client
 	Database *sql.DB
+	Manifest *manifest.GrawpManifest
+}
+
+func (Sb *ServiceBroker) ArchiveService(sm manifest.ServiceManifest) error {
+	var err error
+	archivePath := sm.GetArchiveDirectory()
+	util.ForEach(slices.Values(sm.GetArchiveTargets()), func(target manifest.ServiceManifestArchiveTarget) {
+		if err != nil {
+			return
+		}
+
+		date := target.TargetDate()
+		year, month, day := date.Year(), date.Month(), date.Day()
+		name := fmt.Sprintf("%s-%d%d%d.tar.gz", target.Name, year, month, day)
+
+		a := ArchiverNew(ArchiveOptsNew(name, archivePath, target.Target))
+		defer a.Close()
+		a.AddIncludes(target.Include...)
+		a.AddExcludes(target.Exclude...)
+		err = a.Archive()
+	})
+	return err
 }
 
 func (Sb *ServiceBroker) BuildImage(sm manifest.ServiceManifest) error {
@@ -83,8 +107,12 @@ func (Sb *ServiceBroker) ListServices(out io.Writer, opts models.ServiceContaine
 	return nil
 }
 
+func (Sb *ServiceBroker) NewService() error {
+	return ServiceNew(*Sb.Manifest)
+}
+
 func (Sb *ServiceBroker) RenderManifestFiles(sm manifest.ServiceManifest) error {
-	return manifest.RenderAllFromManifest(&sm)
+	return RenderAllFromManifest(&sm)
 }
 
 func attempt(sm manifest.ServiceManifest, callbacks ...ServiceManifestCallback) error {
@@ -97,7 +125,7 @@ func attempt(sm manifest.ServiceManifest, callbacks ...ServiceManifestCallback) 
 	return err
 }
 
-func ServiceBrokerNew(dataSource string) (*ServiceBroker, error) {
+func ServiceBrokerNew(gm *manifest.GrawpManifest) (*ServiceBroker, error) {
 	// client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	// sql.Open("sqlite3", dataSource)
 	var sb ServiceBroker
@@ -107,12 +135,13 @@ func ServiceBrokerNew(dataSource string) (*ServiceBroker, error) {
 	if err != nil {
 		return nil, err
 	}
-	dbc, err := sql.Open("sqlite3", dataSource)
+	dbc, err := sql.Open("sqlite3", gm.GetDataSource())
 	if err != nil {
 		return nil, err
 	}
 
 	sb.Client = cli
 	sb.Database = dbc
+	sb.Manifest = gm
 	return &sb, nil
 }

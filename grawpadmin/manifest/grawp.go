@@ -104,10 +104,8 @@ func (Gm *GrawpManifest) LoadServiceManifest() (ServiceManifest, error) {
 	return sm, nil
 }
 
-func (Gm *GrawpManifest) NewService() error {
-	return ServiceNew(*Gm)
-}
-
+// Generate the .grawp directory from the user's current
+// workding directory.
 func GenerateDotGrawp() error {
 	os.Mkdir(strings.ReplaceAll(dotGrawpName, "*", ""), defaultFileMode)
 	ResetDeadPaths()

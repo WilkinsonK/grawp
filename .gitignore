@@ -3,9 +3,6 @@
 /backups
 /proxy
 /server
-*.db
-!*.template
-!*.tmpl
-*.properties
-*.yml
 grawpa
+*.tar
+*.gz

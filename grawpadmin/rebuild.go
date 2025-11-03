@@ -4,14 +4,33 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 )
 
+var DeveloperMode string
 var ProjectRootPath string
 
+var _DeveloperMode bool
+var _ProjectRootPath string
+
+func initLinkOptions() {
+	yes, err := strconv.ParseBool(DeveloperMode)
+	if err != nil {
+		_DeveloperMode = false
+	}
+	_DeveloperMode = yes
+
+	if !_DeveloperMode {
+		DeveloperMode = ""
+		ProjectRootPath = ""
+		return
+	}
+
+	_ProjectRootPath = ProjectRootPath
+}
+
 func DoRebuildSelf() error {
-	fmt.Println("Rebuilding...")
-	os.Chdir(ProjectRootPath)
-	fmt.Printf("ProjectRootPath: %s\n", ProjectRootPath)
+	os.Chdir(_ProjectRootPath)
 	cmd := exec.Command("make")
 	output, err := cmd.CombinedOutput()
 	if err != nil {

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"os"
+	"slices"
 
 	"github.com/WilkinsonK/grawp/grawpadmin/manifest"
 	"github.com/WilkinsonK/grawp/grawpadmin/service"
 	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
+	"github.com/WilkinsonK/grawp/grawpadmin/util"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +22,14 @@ var rootCommand = &cobra.Command{
 	Short:   "Manage processes of this project",
 	Long:    "Grawpadmin is an application meant for maintaining this project and its processes",
 	Version: "1.0.0",
+}
+
+var archiveServiceCommand = &cobra.Command{
+	Aliases: []string{"arc"},
+	Use:     "archive",
+	Short:   "Create tar ball(s) of server assets.",
+	Args:    cobra.ExactArgs(0),
+	RunE:    ArchiveService,
 }
 
 var buildImageCommand = &cobra.Command{
@@ -70,6 +81,13 @@ var listImageServicesCommand = &cobra.Command{
 	RunE:  ListServices,
 }
 
+var printManifestCommand = &cobra.Command{
+	Use:   "manifest",
+	Short: "Print the service manifest to stdout",
+	Args:  cobra.ExactArgs(0),
+	RunE:  PrintManifest,
+}
+
 var rebuildSelf = &cobra.Command{
 	Aliases: []string{"rs"},
 	Use:     "rebuild-self",
@@ -89,9 +107,7 @@ var watchImageServiceCommand = &cobra.Command{
 }
 
 func commonImagePersistentFlags(commands ...*cobra.Command) {
-	for _, cmd := range commands {
-		commonImagePersistentFlagsC(cmd)
-	}
+	util.ForEach(slices.Values(commands), commonImagePersistentFlagsC)
 }
 
 func commonImagePersistentFlagsC(cmd *cobra.Command) {
@@ -103,9 +119,7 @@ func commonImagePersistentFlagsC(cmd *cobra.Command) {
 }
 
 func commonImageFlags(commands ...*cobra.Command) {
-	for _, cmd := range commands {
-		commonImageFlagsC(cmd)
-	}
+	util.ForEach(slices.Values(commands), commonImageFlagsC)
 }
 
 func commonImageFlagsC(cmd *cobra.Command) {
@@ -120,34 +134,91 @@ func init() {
 		Manifest = gm
 	}
 
-	buildImageCommand.Flags().StringArrayVarP(&Manifest.GetMetadata().Image.BuildArgs, "build-arg", "b", []string{}, "Build arguments, as <key>=<value> pairs, to pass at construction")
-	buildImageCommand.Flags().StringArrayVarP(&Manifest.GetMetadata().Image.BuildProperties, "property", "P", []string{}, "Build properties, as <key>=<value> pairs, to pass at construction")
+	initCommandArchiveService()
+	initCommandBuildImage()
+	initCommandBuildImageService()
+	initCommandImages()
+	initCommandImageServices()
+	initCommandInitImageService()
+	initCommandListImageServices()
+	initCommandPrintManifest()
+	initCommandWatchService()
 
-	buildImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().Service.Name, "name", "N", "", "Name of the service to be created")
-	buildImageServiceCommand.Flags().StringSliceVarP(&Manifest.GetMetadata().Service.ExposedPorts, "publish", "p", []string{}, "Additional ports to expose on service intialization")
-	buildImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().Service.TagName, "image-tag", "t", "latest", "Service image tag name to create service from")
-	buildImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().Service.LocalVolume, "local-volume", "v", "server", "The output directory where server assets are managed")
+	subcmds := []*cobra.Command{
+		archiveServiceCommand,
+		imagesCommand,
+		imageServicesCommand,
+		printManifestCommand,
+		watchImageServiceCommand,
+	}
+	rootCommand.AddCommand(subcmds...)
 
-	commonImageFlags(buildImageCommand, buildImageServiceCommand)
+	// For project level embedded values.
+	initLinkOptions()
+	if _DeveloperMode {
+		rootCommand.AddCommand(rebuildSelf)
+	}
+}
 
-	listImageServicesCommand.Flags().StringVarP(&FindOpts.Name, "name", "N", "", "Name of the container")
-	listImageServicesCommand.Flags().StringVarP(&FindOpts.DockerID, "id", "I", "", "Docker ID of the container")
-	listImageServicesCommand.Flags().UintVarP(&FindOpts.Limit, "limit", "l", 0, "Max number of items to return")
+func initCommandArchiveService() {
+	cmd := archiveServiceCommand
+	commonImageFlags(cmd)
+}
 
-	initImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().MinecraftVersion, "mc-version", "X", "1.21.10", "Minecraft version this service is meant for")
-	initImageServiceCommand.Flags().StringVarP(&Manifest.GetMetadata().Service.Name, "name", "N", "", "Name of the service to be created")
+func initCommandBuildImage() {
+	cmd := buildImageCommand
+	cmd.Flags().StringArrayVarP(&Manifest.GetMetadata().Image.BuildArgs, "build-arg", "b", []string{}, "Build arguments, as <key>=<value> pairs, to pass at construction")
+	cmd.Flags().StringArrayVarP(&Manifest.GetMetadata().Image.BuildProperties, "property", "P", []string{}, "Build properties, as <key>=<value> pairs, to pass at construction")
+	commonImageFlags(cmd)
+}
 
-	commonImagePersistentFlags(imagesCommand, imageServicesCommand, initImageServiceCommand)
+func initCommandBuildImageService() {
+	cmd := buildImageServiceCommand
+	cmd.Flags().StringVarP(&Manifest.GetMetadata().Service.Name, "name", "N", "", "Name of the service to be created")
+	cmd.Flags().StringSliceVarP(&Manifest.GetMetadata().Service.ExposedPorts, "publish", "p", []string{}, "Additional ports to expose on service intialization")
+	cmd.Flags().StringVarP(&Manifest.GetMetadata().Service.TagName, "image-tag", "t", "latest", "Service image tag name to create service from")
+	cmd.Flags().StringVarP(&Manifest.GetMetadata().Service.LocalVolume, "local-volume", "v", "server", "The output directory where server assets are managed")
+	commonImageFlags(cmd)
+}
 
-	watchImageServiceCommand.Flags().StringVarP(&Manifest.DataName, "data-name", "d", Manifest.DataName, "Path to service data")
+func initCommandImages() {
+	cmd := imagesCommand
+	commonImagePersistentFlags(cmd)
+	cmd.AddCommand(buildImageCommand, listImagesCommand)
+}
 
-	imagesCommand.AddCommand(buildImageCommand, listImagesCommand)
-	imageServicesCommand.AddCommand(buildImageServiceCommand, listImageServicesCommand, initImageServiceCommand)
-	rootCommand.AddCommand(imagesCommand, imageServicesCommand, rebuildSelf, watchImageServiceCommand)
+func initCommandImageServices() {
+	cmd := imageServicesCommand
+	commonImagePersistentFlags(cmd)
+	cmd.AddCommand(buildImageServiceCommand, listImageServicesCommand, initImageServiceCommand)
+}
+
+func initCommandInitImageService() {
+	cmd := initImageServiceCommand
+	cmd.Flags().StringVarP(&Manifest.GetMetadata().MinecraftVersion, "mc-version", "X", "1.21.10", "Minecraft version this service is meant for")
+	cmd.Flags().StringVarP(&Manifest.GetMetadata().Service.Name, "name", "N", "", "Name of the service to be created")
+	commonImagePersistentFlags(initImageServiceCommand)
+}
+
+func initCommandListImageServices() {
+	cmd := listImageServicesCommand
+	cmd.Flags().StringVarP(&FindOpts.Name, "name", "N", "", "Name of the container")
+	cmd.Flags().StringVarP(&FindOpts.DockerID, "id", "I", "", "Docker ID of the container")
+	cmd.Flags().UintVarP(&FindOpts.Limit, "limit", "l", 0, "Max number of items to return")
+}
+
+func initCommandPrintManifest() {
+	cmd := printManifestCommand
+	commonImageFlags(cmd)
+}
+
+func initCommandWatchService() {
+	cmd := watchImageServiceCommand
+	cmd.Flags().StringVarP(&Manifest.DataName, "data-name", "d", Manifest.DataName, "Path to service data")
 }
 
 func initDatabase(cmd *cobra.Command, _ []string) error {
-	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(&Manifest)
 	if err != nil {
 		return err
 	}
@@ -155,8 +226,23 @@ func initDatabase(cmd *cobra.Command, _ []string) error {
 	return broker.InitDatabase()
 }
 
+func ArchiveService(cmd *cobra.Command, _ []string) error {
+	broker, err := service.ServiceBrokerNew(&Manifest)
+	if err != nil {
+		return err
+	}
+	defer broker.Close()
+
+	sm, err := Manifest.LoadServiceManifest()
+	if err != nil {
+		return err
+	}
+
+	return broker.ArchiveService(sm)
+}
+
 func BuildImage(cmd *cobra.Command, _ []string) error {
-	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(&Manifest)
 	if err != nil {
 		return err
 	}
@@ -174,7 +260,7 @@ func BuildImageService(cmd *cobra.Command, _ []string) error {
 	// (if necessary or user wants to).
 	// TODO: Still need to be able to build the container
 	// image if it does not exist.
-	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(&Manifest)
 	if err != nil {
 		return err
 	}
@@ -189,7 +275,7 @@ func BuildImageService(cmd *cobra.Command, _ []string) error {
 }
 
 func ListImages(cmd *cobra.Command, _ []string) error {
-	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(&Manifest)
 	if err != nil {
 		return err
 	}
@@ -198,7 +284,7 @@ func ListImages(cmd *cobra.Command, _ []string) error {
 }
 
 func ListServices(cmd *cobra.Command, _ []string) error {
-	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(&Manifest)
 	if err != nil {
 		return err
 	}
@@ -207,7 +293,32 @@ func ListServices(cmd *cobra.Command, _ []string) error {
 }
 
 func NewService(cmd *cobra.Command, _ []string) error {
-	return Manifest.NewService()
+	broker, err := service.ServiceBrokerNew(&Manifest)
+	if err != nil {
+		return err
+	}
+	defer broker.Close()
+	return broker.NewService()
+}
+
+func PrintManifest(cmd *cobra.Command, _ []string) error {
+	broker, err := service.ServiceBrokerNew(&Manifest)
+	if err != nil {
+		return err
+	}
+	defer broker.Close()
+
+	sm, err := Manifest.LoadServiceManifest()
+	if err != nil {
+		return err
+	}
+
+	display, err := sm.Display()
+	if err != nil {
+		return err
+	}
+	fmt.Println(display)
+	return nil
 }
 
 func RebuildSelf(cmd *cobra.Command, _ []string) error {
@@ -215,12 +326,12 @@ func RebuildSelf(cmd *cobra.Command, _ []string) error {
 }
 
 func WatchService(cmd *cobra.Command, args []string) error {
-	broker, err := service.ServiceBrokerNew(Manifest.GetDataSource())
+	broker, err := service.ServiceBrokerNew(&Manifest)
 	if err != nil {
 		return err
 	}
 	defer broker.Close()
-	return WatcherNew(broker).Watch(args[0])
+	return service.WatcherNew(broker).Watch(args[0])
 }
 
 // Tasks:

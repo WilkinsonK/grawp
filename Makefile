@@ -1,8 +1,9 @@
+WD=$$(pwd)
+DEV_MODE=1
+
 .PHONY: all build
 
 all: build
 
-WD=$$(pwd)
-
 build:
-	go build -C $(WD)/grawpadmin -ldflags="-X 'main.ProjectRootPath=$(WD)'" -o ../grawpa
+	@go build -C $(WD)/grawpadmin -ldflags="-X 'main.ProjectRootPath=$(WD)' -X 'main.DeveloperMode=$(DEV_MODE)'" -o ../grawpa

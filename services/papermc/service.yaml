@@ -1,5 +1,15 @@
 name: papermc
 minecraft-version: 1.21.10
+archive:
+  - name: "world"
+    include:
+      - "world/*/**"
+  - name: "world_nether"
+    include:
+      - "world_nether/*/**"
+  - name: "world_the_end"
+    include:
+      - "world_the_end/*/**"
 args:
   PapermcEndpoint: "{{.Properties.BuildHash}}/paper-{{.MinecraftVersion}}-{{.Properties.BuildNumber}}.jar"
 local-volume: /Users/kwilkinson/dev/minecraft/server

@@ -8,15 +8,30 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
+	"time"
 
+	"github.com/WilkinsonK/grawp/grawpadmin/util"
 	"github.com/docker/docker/api/types/build"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 	"github.com/goccy/go-yaml"
 	"github.com/moby/go-archive"
 )
+
+type ServiceManifestArchiveTarget struct {
+	date    time.Time
+	Exclude []string
+	Include []string
+	Name    string
+	Target  string
+}
+
+func (Sma *ServiceManifestArchiveTarget) TargetDate() time.Time {
+	return Sma.date
+}
 
 type ServiceManifestBuildSettings struct {
 	DataPath       string
@@ -28,6 +43,7 @@ type ServiceManifestBuildSettings struct {
 type ServiceManifest struct {
 	manifestPath     string
 	buildSettings    ServiceManifestBuildSettings
+	Archive          []ServiceManifestArchiveTarget
 	Name             string
 	Dockerfile       string
 	MinecraftVersion string `json:"minecraft-version"`
@@ -36,6 +52,14 @@ type ServiceManifest struct {
 	Ports            []string
 	Properties       map[string]any
 	Tags             []string
+}
+
+func (Sm *ServiceManifest) Display() (string, error) {
+	raw, err := yaml.Marshal(Sm)
+	if err != nil {
+		return "", err
+	}
+	return Sm.formatString("manifest-display", string(raw))
 }
 
 func (Sm *ServiceManifest) formatString(templateName string, value string) (string, error) {
@@ -56,6 +80,31 @@ func (Sm *ServiceManifest) AddPorts(ports ...string) {
 	Sm.Ports = append(Sm.Ports, ports...)
 }
 
+func (Sm *ServiceManifest) GetArchiveTargets() []ServiceManifestArchiveTarget {
+	return util.Collect(slices.Values(Sm.Archive), func(t ServiceManifestArchiveTarget) ServiceManifestArchiveTarget {
+		if t.Target == "" {
+			t.Target = Sm.LocalVolume
+		} else {
+			tt, err := Sm.formatString("archive-target-path", t.Target)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error rendering target path: %s\n", err)
+			} else {
+				t.Target = tt
+			}
+		}
+
+		name, err := Sm.formatString("archive-target-name", t.Name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error rendering target name: %s\n", err)
+		} else {
+			t.Name = name
+		}
+
+		t.date = time.Now()
+		return t
+	})
+}
+
 // Get a string value from the `Arg` list.
 //
 // Args are capable of being formatted by manifest values
@@ -63,6 +112,14 @@ func (Sm *ServiceManifest) AddPorts(ports ...string) {
 func (Sm *ServiceManifest) GetArgS(key string) (string, error) {
 	value := Sm.Args[key].(string)
 	return Sm.formatString(fmt.Sprintf("%s-arg-template", key), value)
+}
+
+func (Sm *ServiceManifest) GetArchiveDirectory() string {
+	return filepath.Join(Sm.GetManifestDirectory(), "archive")
+}
+
+func (Sm *ServiceManifest) GetAssetsDirectory() string {
+	return filepath.Join(Sm.GetManifestDirectory(), "assets")
 }
 
 // Get the Dockerfile name associated with this image
@@ -202,18 +259,42 @@ func (Sm *ServiceManifest) GetServiceName() string {
 // using `{{ ... }}` contexts.
 func (Sm *ServiceManifest) GetTags() ([]string, error) {
 	var tags []string = []string{}
-	for tag := range Sm.Tags {
-		t, err := Sm.formatString("tag-template", Sm.Tags[tag])
+	var err error
+	util.CollectVar(&tags, slices.Values(Sm.Tags), func(tag string) string {
 		if err != nil {
-			return tags, err
+			return ""
 		}
-		tags = append(tags, t)
-	}
-	return tags, nil
+		t, err := Sm.formatString("tag-template", tag)
+		if err != nil {
+			return ""
+		}
+		return t
+	})
+	return tags, err
 }
 
+// Get the expected location of templates.
+func (Sm *ServiceManifest) GetTemplatesDirectory() string {
+	return filepath.Join(Sm.GetManifestDirectory(), "templates")
+}
+
+// Get the template file paths.
 func (Sm *ServiceManifest) GetTemplateFiles() ([]string, error) {
-	return FindTemplateFiles(Sm.GetManifestDirectory())
+	var root string = Sm.GetTemplatesDirectory()
+	var files []string
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return files, err
+	}
+
+	for _, entry := range entries {
+		if entry.Type().IsDir() {
+			continue
+		}
+		files = append(files, filepath.Join(root, entry.Name()))
+	}
+
+	return files, nil
 }
 
 // Parse a slice of strings as <key>=<value> pairs into the
