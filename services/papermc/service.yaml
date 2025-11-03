@@ -1,6 +1,10 @@
 name: papermc
 minecraft-version: 1.21.10
 archive:
+  - name: "config"
+    include:
+      - "**/*.json"
+      - "**/*.yml"
   - name: "world"
     include:
       - "world/*/**"

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 
 	"github.com/WilkinsonK/grawp/grawpadmin/manifest"
@@ -24,6 +25,7 @@ type ServiceBroker struct {
 func (Sb *ServiceBroker) ArchiveService(sm manifest.ServiceManifest) error {
 	var err error
 	archivePath := sm.GetArchiveDirectory()
+	os.MkdirAll(archivePath, defaultFileMode)
 	util.ForEach(slices.Values(sm.GetArchiveTargets()), func(target manifest.ServiceManifestArchiveTarget) {
 		if err != nil {
 			return
@@ -31,7 +33,7 @@ func (Sb *ServiceBroker) ArchiveService(sm manifest.ServiceManifest) error {
 
 		date := target.TargetDate()
 		year, month, day := date.Year(), date.Month(), date.Day()
-		name := fmt.Sprintf("%s-%d%d%d.tar.gz", target.Name, year, month, day)
+		name := fmt.Sprintf("%s-%04d%02d%02d.tar.gz", target.Name, year, month, day)
 
 		a := ArchiverNew(ArchiveOptsNew(name, archivePath, target.Target))
 		defer a.Close()
@@ -126,8 +128,6 @@ func attempt(sm manifest.ServiceManifest, callbacks ...ServiceManifestCallback) 
 }
 
 func ServiceBrokerNew(gm *manifest.GrawpManifest) (*ServiceBroker, error) {
-	// client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	// sql.Open("sqlite3", dataSource)
 	var sb ServiceBroker
 	var err error
 

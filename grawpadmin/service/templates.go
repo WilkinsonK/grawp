@@ -57,6 +57,7 @@ func LoadTemplate(templateName string) (*template.Template, error) {
 // templates.
 func RenderAllFromManifest(sm *manifest.ServiceManifest) error {
 	root := sm.GetAssetsDirectory()
+	os.MkdirAll(root, defaultFileMode)
 	files, err := sm.GetTemplateFiles()
 	if err != nil {
 		return err
