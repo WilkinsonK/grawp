@@ -88,6 +88,12 @@ func (Gm *GrawpManifest) LoadServiceManifest() (ServiceManifest, error) {
 		return sm, err
 	}
 
+	// TODO: This should probably be placed in a separate
+	// method.
+	os.MkdirAll(sm.GetArchiveDirectory(), defaultFileMode)
+	os.MkdirAll(sm.GetAssetsDirectory(), defaultFileMode)
+	os.MkdirAll(sm.GetTemplatesDirectory(), defaultFileMode)
+
 	metadata, settings := Gm.metadata, sm.GetImageBuildSettings()
 	sm.AddPorts(metadata.Service.ExposedPorts...)
 	sm.UpdateArgsFromSliceS(metadata.Image.BuildArgs)
