@@ -39,7 +39,7 @@ Use "grawpadmin [command] --help" for more information about a command.
 Installation is simple provided you have already installed
 `golang` and its build chain.
 
-**NOTE**: This project has been build to be used on
+**NOTE**: This project has been built to be used on
 non-Windows (UNIX) OS only. Functionality will likely not
 work if attempting to use a Windows system.
 
