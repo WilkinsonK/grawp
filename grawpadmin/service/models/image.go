@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -100,6 +101,71 @@ func ServiceImageExists(db *sql.DB, si ServiceImage) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
+}
+
+type ServiceImageFindOpts struct {
+	Uuid     uuid.UUID
+	Name     string
+	DockerID string
+	Tag      string
+	Limit    uint
+}
+
+func ServiceImagesFind(db *sql.DB, opts ServiceImageFindOpts) ([]ServiceImage, error) {
+	var buf strings.Builder
+	var si ServiceImage
+	var sis []ServiceImage
+	var args []any
+	buf.WriteString("SELECT serviceimage FROM service_image")
+
+	var cond []string
+	if opts.Uuid != uuid.Nil {
+		cond = append(cond, "serviceimage->>'uuid' = ?")
+		args = append(args, opts.Uuid)
+	}
+	if opts.Name != "" {
+		cond = append(cond, "serviceimage->>'name' = ?")
+		args = append(args, opts.Name)
+	}
+	if opts.DockerID != "" {
+		cond = append(cond, "serviceimage->>'docker_id' = ?")
+		args = append(args, opts.DockerID)
+	}
+	if opts.Tag != "" {
+		cond = append(cond, "serviceimage->>'tag' = ?")
+		args = append(args, opts.Tag)
+	}
+
+	if len(cond) > 0 {
+		buf.WriteString(" WHERE ")
+		buf.WriteString(strings.Join(cond, " AND "))
+	}
+
+	if opts.Limit != 0 {
+		buf.WriteString(" LIMIT ?")
+		args = append(args, opts.Limit)
+	}
+
+	stmt, err := db.Prepare(buf.String())
+	if err != nil {
+		return sis, err
+	}
+	defer stmt.Close()
+
+	resp, err := stmt.Query(args...)
+	if err != nil {
+		return sis, err
+	}
+
+	for resp.Next() {
+		err = resp.Scan(&si)
+		if err != nil {
+			return sis, err
+		}
+		sis = append(sis, si)
+	}
+
+	return sis, nil
 }
 
 // List all known `ServiceImage` records.

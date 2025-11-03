@@ -86,8 +86,8 @@ func (Sb *ServiceBroker) InitDatabase() error {
 	return models.InitDatabaseTables(Sb.Database)
 }
 
-func (Sb *ServiceBroker) ListImages(out io.Writer) error {
-	models, err := models.ServiceImagesList(Sb.Database)
+func (Sb *ServiceBroker) ListImages(out io.Writer, opts models.ServiceImageFindOpts) error {
+	models, err := models.ServiceImagesFind(Sb.Database, opts)
 	if err != nil {
 		return err
 	}

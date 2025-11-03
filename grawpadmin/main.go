@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	Manifest manifest.GrawpManifest
-	FindOpts models.ServiceContainerFindOpts
+	Manifest        manifest.GrawpManifest
+	ImageFindOpts   models.ServiceImageFindOpts
+	ServiceFindOpts models.ServiceContainerFindOpts
 )
 
 var rootCommand = &cobra.Command{
@@ -140,6 +141,7 @@ func init() {
 	initCommandImages()
 	initCommandImageServices()
 	initCommandInitImageService()
+	initCommandListImages()
 	initCommandListImageServices()
 	initCommandPrintManifest()
 	initCommandWatchService()
@@ -200,11 +202,19 @@ func initCommandInitImageService() {
 	commonImagePersistentFlags(initImageServiceCommand)
 }
 
+func initCommandListImages() {
+	cmd := listImagesCommand
+	cmd.Flags().StringVarP(&ImageFindOpts.Name, "name", "N", "", "Name of the image")
+	cmd.Flags().StringVarP(&ImageFindOpts.DockerID, "id", "I", "", "Docker ID of the image")
+	cmd.Flags().StringVarP(&ImageFindOpts.Tag, "tag", "t", "", "Image tag name")
+	cmd.Flags().UintVarP(&ImageFindOpts.Limit, "limit", "l", 0, "Max number of items to return")
+}
+
 func initCommandListImageServices() {
 	cmd := listImageServicesCommand
-	cmd.Flags().StringVarP(&FindOpts.Name, "name", "N", "", "Name of the container")
-	cmd.Flags().StringVarP(&FindOpts.DockerID, "id", "I", "", "Docker ID of the container")
-	cmd.Flags().UintVarP(&FindOpts.Limit, "limit", "l", 0, "Max number of items to return")
+	cmd.Flags().StringVarP(&ServiceFindOpts.Name, "name", "N", "", "Name of the container")
+	cmd.Flags().StringVarP(&ServiceFindOpts.DockerID, "id", "I", "", "Docker ID of the container")
+	cmd.Flags().UintVarP(&ServiceFindOpts.Limit, "limit", "l", 0, "Max number of items to return")
 }
 
 func initCommandPrintManifest() {
@@ -280,7 +290,7 @@ func ListImages(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	defer broker.Close()
-	return broker.ListImages(os.Stdout)
+	return broker.ListImages(os.Stdout, ImageFindOpts)
 }
 
 func ListServices(cmd *cobra.Command, _ []string) error {
@@ -289,7 +299,7 @@ func ListServices(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	defer broker.Close()
-	return broker.ListServices(os.Stdout, FindOpts)
+	return broker.ListServices(os.Stdout, ServiceFindOpts)
 }
 
 func NewService(cmd *cobra.Command, _ []string) error {
