@@ -22,7 +22,7 @@ var rootCommand = &cobra.Command{
 	Use:     "grawpadmin",
 	Short:   "Manage processes of this project",
 	Long:    "Grawpadmin is an application meant for maintaining this project and its processes",
-	Version: "1.0.0",
+	Version: "1.1.0",
 }
 
 var archiveServiceCommand = &cobra.Command{
