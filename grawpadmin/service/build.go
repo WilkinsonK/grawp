@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"strings"
 
@@ -10,11 +9,10 @@ import (
 	"github.com/WilkinsonK/grawp/grawpadmin/service/models"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/client"
 )
 
 // Attempt to build an image from an `ImageManifest`.
-func BuildImageFromManifest(cli *client.Client, sm manifest.ServiceManifest) ([]models.ServiceImage, error) {
+func BuildImageFromManifest(broker *ServiceBroker, sm manifest.ServiceManifest) ([]models.ServiceImage, error) {
 	var sModels []models.ServiceImage
 
 	opt, err := sm.GetImageBuildOptions()
@@ -28,14 +26,14 @@ func BuildImageFromManifest(cli *client.Client, sm manifest.ServiceManifest) ([]
 	defer ctx.Close()
 
 	settings := sm.GetImageBuildSettings()
-	resp, err := cli.ImageBuild(context.Background(), ctx, opt)
+	resp, err := broker.Client.ImageBuild(context.Background(), ctx, opt)
 	if err != nil {
 		return sModels, err
 	}
 	defer resp.Body.Close()
 	io.Copy(settings.OutDestination, resp.Body)
 
-	_, err = cli.ImagesPrune(context.Background(), filters.Args{})
+	_, err = broker.Client.ImagesPrune(context.Background(), filters.Args{})
 	if err != nil {
 		return sModels, err
 	}
@@ -48,7 +46,7 @@ func BuildImageFromManifest(cli *client.Client, sm manifest.ServiceManifest) ([]
 			tTag = tParts[1]
 		}
 
-		resp, err := cli.ImageList(context.Background(), image.ListOptions{
+		resp, err := broker.Client.ImageList(context.Background(), image.ListOptions{
 			Filters: filters.NewArgs(filters.Arg("reference", tag)),
 		})
 		if err != nil {
@@ -67,10 +65,7 @@ func BuildImageFromManifest(cli *client.Client, sm manifest.ServiceManifest) ([]
 		sModels = append(sModels, model)
 	}
 
-	err = models.WithDatabase(settings.DataPath, func(db *sql.DB) error {
-		_, err = models.ServiceImagePut(db, sModels...)
-		return err
-	})
+	_, err = models.ServiceImagePut(broker.Database, sModels...)
 	return sModels, err
 }
 
@@ -79,7 +74,7 @@ func BuildImageFromManifest(cli *client.Client, sm manifest.ServiceManifest) ([]
 //
 // Returns the `name` of the container and the container
 // `ID`.
-func BuildServiceFromManifest(cli *client.Client, sm manifest.ServiceManifest) (models.ServiceContainer, error) {
+func BuildServiceFromManifest(broker *ServiceBroker, sm manifest.ServiceManifest) (models.ServiceContainer, error) {
 	var model models.ServiceContainer
 
 	settings := sm.GetImageBuildSettings()
@@ -97,7 +92,7 @@ func BuildServiceFromManifest(cli *client.Client, sm manifest.ServiceManifest) (
 	}
 
 	ctx := context.Background()
-	res, err := cli.ContainerCreate(
+	res, err := broker.Client.ContainerCreate(
 		ctx,
 		&config,
 		&hostc,
@@ -111,9 +106,6 @@ func BuildServiceFromManifest(cli *client.Client, sm manifest.ServiceManifest) (
 	if err != nil {
 		return model, err
 	}
-	err = models.WithDatabase(settings.DataPath, func(db *sql.DB) error {
-		_, err = models.ServiceContainerPut(db, model)
-		return err
-	})
+	_, err = models.ServiceContainerPut(broker.Database, model)
 	return model, err
 }

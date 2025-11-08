@@ -49,12 +49,12 @@ func (Sb *ServiceBroker) BuildImage(sm manifest.ServiceManifest) error {
 }
 
 func (Sb *ServiceBroker) BuildImageFromManifest(sm manifest.ServiceManifest) error {
-	_, err := BuildImageFromManifest(Sb.Client, sm)
+	_, err := BuildImageFromManifest(Sb, sm)
 	return err
 }
 
 func (Sb *ServiceBroker) BuildImageServiceFromManifest(sm manifest.ServiceManifest, out io.Writer) error {
-	model, err := BuildServiceFromManifest(Sb.Client, sm)
+	model, err := BuildServiceFromManifest(Sb, sm)
 	if err != nil {
 		return err
 	}

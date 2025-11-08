@@ -52,12 +52,3 @@ func InitDatabaseTables(db *sql.DB) error {
 	}
 	return nil
 }
-
-func WithDatabase(dataSourceName string, callback func(db *sql.DB) error) error {
-	db, err := sql.Open("sqlite3", dataSourceName)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-	return callback(db)
-}
